@@ -18,13 +18,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
+import com.gaia3d.tadpole.spatial.data.core.spaitaldb.SpatiaDBFactory;
 import com.gaia3d.tadpole.spatial.data.core.spaitaldb.dao.RequestSpatialQueryDAO;
-import com.gaia3d.tadpole.spatial.data.core.ui.editor.SpatialDataManagerDataHandler;
-import com.hangum.tadpole.engine.define.DBDefine;
+import com.gaia3d.tadpole.spatial.data.core.spaitaldb.utils.GEOJSONUtils;
+import com.gaia3d.tadpole.spatial.data.core.spaitaldb.utils.SDMUtiils;
+import com.gaia3d.tadpole.spatial.data.core.ui.editor.extension.SpatialDataManagerDataHandler;
+import com.hangum.tadpole.commons.libs.core.define.PublicTadpoleDefine;
 import com.hangum.tadpole.engine.manager.TadpoleSQLManager;
 import com.hangum.tadpole.engine.query.dao.system.UserDBDAO;
+import com.hangum.tadpole.engine.sql.util.QueryUtils;
+import com.hangum.tadpole.engine.sql.util.resultset.QueryExecuteResultDTO;
 import com.hangum.tadpole.engine.sql.util.resultset.ResultSetUtils;
 
 /**
@@ -47,7 +53,6 @@ public abstract class AbstractSpatialDB implements SpatialDB {
 	public AbstractSpatialDB(UserDBDAO userDB) {
 		this.userDB = userDB;
 	}
-
 
 	/**
 	 * query
@@ -78,7 +83,6 @@ public abstract class AbstractSpatialDB implements SpatialDB {
 		return false;
 	}
 	
-
 	/**
 	 * spatial column이 있다면 원하는 형태로 조작한다.
 	 * 
@@ -108,17 +112,11 @@ public abstract class AbstractSpatialDB implements SpatialDB {
 				String strSearchType 	= (String)mapOriginal.get("type");
 				String strSearchTypeName = (String)mapOriginal.get("typeName");
 				
-				if(logger.isDebugEnabled()) {
-					logger.debug("==> [strSearchColumn]" + strSearchColumn + "\t [strSearchType]" + strSearchType + "\t[strSearchTypeName]" + strSearchTypeName);
-				}
+//				if(logger.isDebugEnabled()) {
+//					logger.debug("==> [strSearchColumn]" + strSearchColumn + "\t [strSearchType]" + strSearchType + "\t[strSearchTypeName]" + strSearchTypeName);
+//				}
 				
-				if(getUserDB().getDBDefine() == DBDefine.POSTGRE_DEFAULT & strSearchType.equals("1111")) {
-					addCostumeColumn.add(strSearchColumn);
-					listRealGisColumnIndex.add(intIndex);
-				} else if(getUserDB().getDBDefine() == DBDefine.MSSQL_DEFAULT & strSearchType.equals("2004")) {
-					addCostumeColumn.add(strSearchColumn);
-					listRealGisColumnIndex.add(intIndex);
-				} else if(getUserDB().getDBDefine() == DBDefine.ORACLE_DEFAULT & strSearchType.equals("2002")) {
+				if(SDMUtiils.isSpitailColumn(userDB, strSearchType)) {
 					addCostumeColumn.add(strSearchColumn);
 					listRealGisColumnIndex.add(intIndex);
 				}
@@ -127,11 +125,14 @@ public abstract class AbstractSpatialDB implements SpatialDB {
 			}	// end while
 			
 			// geo 컬럼이 있는 것이다.
+			boolean isColumnNull = false;
 			if(!addCostumeColumn.isEmpty()) {
 				
 				String strAddCustomeColumn = "";
 				for(int i=0; i<addCostumeColumn.size(); i++) {
-					String strColumn = addCostumeColumn.get(i);
+					String strColumn = StringUtils.trim(addCostumeColumn.get(i));
+					// 
+					if("".equals(strColumn)) isColumnNull = true;
 					strAddCustomeColumn += String.format(dao.getSpatialQuery(), strColumn, strColumn);
 					if(addCostumeColumn.size()-1 != i) strAddCustomeColumn += ", ";
 				}
@@ -140,10 +141,19 @@ public abstract class AbstractSpatialDB implements SpatialDB {
 					logger.debug("Add Column is " + strAddCustomeColumn);
 					logger.debug("full SQL is " + String.format(SpatialDataManagerDataHandler.GEOJSON_FULLY_SQL_FORMAT, strAddCustomeColumn, dao.getOrigianlQuery()));
 				}
-				
-				dao.setTadpoleFullyQuery( String.format(SpatialDataManagerDataHandler.GEOJSON_FULLY_SQL_FORMAT, strAddCustomeColumn, dao.getOrigianlQuery()) );
+
+				//
+				// 컬럼 중에 어느 하나라도 컬럼명을 알아오지 못하면 query 를 변형하지 않는다.
+				// 이럴 경우는 geo 타입을 다른 타입으로 캐스팅했을 경우 원래 타입이 geo 타입이라 들어오게 되는데... 인가?
+				//
+				if(!isColumnNull) {
+					dao.setTadpoleFullyQuery( String.format(SpatialDataManagerDataHandler.GEOJSON_FULLY_SQL_FORMAT, strAddCustomeColumn, dao.getOrigianlQuery()) );
+				}
 			}
-			dao.setListRealGisColumnIndex(listRealGisColumnIndex);
+			// 컬럼 중에 어느 하나라도 컬럼명을 알아오지 못하면 query 를 변형하지 않는다.
+			if(!isColumnNull) {
+				dao.setListRealGisColumnIndex(listRealGisColumnIndex);
+			}
 			
 		} catch (Exception e) {
 			logger.error("SpatialDataManager extension" + e);
@@ -156,6 +166,48 @@ public abstract class AbstractSpatialDB implements SpatialDB {
 		}
 
 		return dao;
+	}
+	
+	@Override
+	public String makeGeojsonFeature(String query) throws Exception {
+		
+		SpatiaDBFactory factory = new SpatiaDBFactory();
+		SpatialDB spatialDB = factory.getSpatialDB(userDB);
+		
+		RequestSpatialQueryDAO dao = new RequestSpatialQueryDAO(query);
+		spatialDB.makeSpatialQuery(dao);
+		List<Integer> listRealGisColumnIndex = dao.getListRealGisColumnIndex();
+		if(listRealGisColumnIndex.isEmpty()) {
+			throw new Exception("Do not find geo column. Please check your geo columns");
+		}
+		
+		if(logger.isDebugEnabled()) {
+			logger.debug("================================================================================");
+			logger.debug(dao.getTadpoleFullyQuery());
+			logger.debug("================================================================================");
+		}
+		
+		QueryExecuteResultDTO queryResultDto = QueryUtils.executeQuery(userDB, dao.getTadpoleFullyQuery(), 0, 1000);
+		Map<Integer, String> mapColumnNames = queryResultDto.getColumnName();
+		List<Integer> listGisColumnIndex = new ArrayList<>();
+		List<Integer> listNonGisColumnIndex = new ArrayList<>();
+		
+		if(logger.isDebugEnabled()) logger.debug("result is "+ queryResultDto.getDataList().getData().size());
+
+		for(int i=0; i<mapColumnNames.size(); i++) {
+			String strSearchColumn = mapColumnNames.get(i);
+			
+			// geojson 으로 만들기위해 커럼을 분석합니다. 
+			if(StringUtils.startsWithIgnoreCase(strSearchColumn, PublicTadpoleDefine.SPECIAL_USER_DEFINE_HIDE_COLUMN)) {
+				listGisColumnIndex.add(i);
+			} else if(!listRealGisColumnIndex.contains(i)) {
+				// -1은 사용자 ui를 구성하기 위해 순번 컬럼이 포함되는데 그것을 뺀것이다.
+				listNonGisColumnIndex.add(i-1);
+			}
+		}
+		
+		String strFeatureCollection = GEOJSONUtils.makeFeatureCollection(userDB, queryResultDto, listGisColumnIndex, queryResultDto.getDataList().getData(), true);
+		return strFeatureCollection;
 	}
 	
 	/**

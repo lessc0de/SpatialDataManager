@@ -18,8 +18,6 @@ package com.gaia3d.tadpole.spatial.data.core.ui.connection;
 import org.apache.log4j.Logger;
 import org.eclipse.swt.graphics.Image;
 
-import com.gaia3d.tadpole.spatial.data.core.spaitaldb.SpatiaDBFactory;
-import com.gaia3d.tadpole.spatial.data.core.spaitaldb.db.SpatialDB;
 import com.hangum.tadpole.engine.query.dao.system.UserDBDAO;
 import com.hangum.tadpole.rdb.core.extensionpoint.definition.IConnectionDecoration;
 
@@ -34,12 +32,16 @@ public class ConnectionViewerDecorator implements IConnectionDecoration {
 	
 	@Override
 	public Image getImage(UserDBDAO userDB) {
-		if(userDB == null) return null;
-		
-		SpatiaDBFactory factory = new SpatiaDBFactory();
-		SpatialDB spatialDB = factory.getSpatialDB(userDB);
-		if(spatialDB == null) return null;
-		return spatialDB.isSpatialDBImage();
+		//
+		// 디비를 불러올때 공간 디비를 지원하는 것은 시스템 전반에 속도 저하를 가져와서 주석으로 막았습니다. - 현종(12.13.2015)
+		//
+//		if(userDB == null) return null;
+//		
+//		SpatiaDBFactory factory = new SpatiaDBFactory();
+//		SpatialDB spatialDB = factory.getSpatialDB(userDB);
+//		if(spatialDB == null) return null;
+//		return spatialDB.isSpatialDBImage();
+		return null;
 	}
 	
 }

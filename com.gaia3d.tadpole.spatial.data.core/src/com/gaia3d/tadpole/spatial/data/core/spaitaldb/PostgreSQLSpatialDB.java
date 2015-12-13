@@ -24,7 +24,7 @@ import org.eclipse.swt.graphics.Image;
 import com.gaia3d.tadpole.spatial.data.core.spaitaldb.dao.RequestSpatialQueryDAO;
 import com.gaia3d.tadpole.spatial.data.core.spaitaldb.db.AbstractSpatialDB;
 import com.gaia3d.tadpole.spatial.data.core.ui.utils.SpatialUtils;
-import com.hangum.tadpold.commons.libs.core.define.PublicTadpoleDefine;
+import com.hangum.tadpole.commons.libs.core.define.PublicTadpoleDefine;
 import com.hangum.tadpole.engine.manager.TadpoleSQLManager;
 import com.hangum.tadpole.engine.query.dao.system.UserDBDAO;
 
@@ -93,7 +93,7 @@ public class PostgreSQLSpatialDB extends AbstractSpatialDB {
 				}
 			}
 		} catch (Exception e1) {
-			logger.error("GoogleMap extension" + e1);
+			logger.error("Find geo tableColumn " + e1);
 		} finally {
 			if(rs != null) try {rs.close(); } catch(Exception e) {}
 			if(stmt != null) try { stmt.close(); } catch(Exception e) {}
